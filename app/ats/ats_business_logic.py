@@ -1,3 +1,4 @@
+import logging
 import re
 import tiktoken
 import string
@@ -104,7 +105,6 @@ def extract_type_and_id(sentence, database_file="database.csv"):
 
     # Sort the final results based on the scores
     sorted_results = sorted(scored_results, key=lambda x: x[3])
-
     return sorted_results
 
 
@@ -117,7 +117,7 @@ def normalize_sentence(sentence):
         # Normalize the word
         normalized_word = normalize_text(word)
         words.append(normalized_word)
-    return " ".join(words)
+    return " ".join(word.lower() for word in words)
 
 
 def normalize_text(text):

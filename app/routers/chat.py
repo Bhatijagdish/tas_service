@@ -18,7 +18,7 @@ os.environ['USER_AGENT'] = 'MyApp/1.0.0'
 ai = ConversationalRAG()
 
 
-@router.post("/stream")
+@router.post("/get_response_from_ai")
 async def stream_response(request_body: QueryRequest, db: Session = Depends(db_connection)):
     try:
         if not request_body.query or not request_body.session_id or not request_body.history_id:
@@ -90,7 +90,7 @@ async def get_token_count(token_counter: TokenCounter):
 
 @router.post("/get_iframe")
 async def get_iframe(type_id: TypeAndID):
-    return {'iframe': iframe_link_generator(type_id.query)}
+    return {'iframe': [model_to_dict(iframe) for iframe in iframe_link_generator(type_id.query)]}
 
 
 @router.post("/get_source")

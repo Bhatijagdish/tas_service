@@ -99,54 +99,54 @@ class ConversationalRAG:
         # self.vectorstore = FAISS_Store.from_documents(documents=self.splits, embedding=self.embeddings)
         # self.vectorstore.save_local("data/merged_vector/index")
         self.vectorstore = FAISS.load_local("data/merged_vector", self.embeddings, allow_dangerous_deserialization=True)
-        self.retriever = self.vectorstore.as_retriever()
-        logger.info("Documents loaded and indexed")
-
-        self.contextualize_q_system_prompt = """
-        Given a chat history and the latest user question which might reference context in the chat history, 
-        formulate a standalone question which can be understood without the chat history. 
-        Do NOT answer the question, just reformulate it if needed and otherwise return it as is.
-        """
-        self.contextualize_q_prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", self.contextualize_q_system_prompt),
-                MessagesPlaceholder("chat_history"),
-                ("human", "{input}"),
-            ]
-        )
-        self.history_aware_retriever = create_history_aware_retriever(self.llm, self.retriever,
-                                                                      self.contextualize_q_prompt)
-        logger.info("History aware retriever created")
-
-        self.qa_system_prompt = """
-        You are an assistant for question-answering tasks. 
-        Use the following pieces of retrieved context to answer the question. 
-        If you don't know the answer, just say that you don't know. 
-        Use three sentences maximum and keep the answer concise.
-
-        {context}
-        """
-        self.qa_prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", self.qa_system_prompt),
-                MessagesPlaceholder("chat_history"),
-                ("human", "{input}"),
-            ]
-        )
-        self.question_answer_chain = create_stuff_documents_chain(self.llm, self.qa_prompt)
-        self.rag_chain = create_retrieval_chain(self.history_aware_retriever, self.question_answer_chain)
-        logger.info("RAG chain created")
+        # self.retriever = self.vectorstore.as_retriever()
+        # logger.info("Documents loaded and indexed")
+        #
+        # self.contextualize_q_system_prompt = """
+        # Given a chat history and the latest user question which might reference context in the chat history,
+        # formulate a standalone question which can be understood without the chat history.
+        # Do NOT answer the question, just reformulate it if needed and otherwise return it as is.
+        # """
+        # self.contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        #     [
+        #         ("system", self.contextualize_q_system_prompt),
+        #         MessagesPlaceholder("chat_history"),
+        #         ("human", "{input}"),
+        #     ]
+        # )
+        # self.history_aware_retriever = create_history_aware_retriever(self.llm, self.retriever,
+        #                                                               self.contextualize_q_prompt)
+        # logger.info("History aware retriever created")
+        #
+        # self.qa_system_prompt = """
+        # You are an assistant for question-answering tasks.
+        # Use the following pieces of retrieved context to answer the question.
+        # If you don't know the answer, just say that you don't know.
+        # Use three sentences maximum and keep the answer concise.
+        #
+        # {context}
+        # """
+        # self.qa_prompt = ChatPromptTemplate.from_messages(
+        #     [
+        #         ("system", self.qa_system_prompt),
+        #         MessagesPlaceholder("chat_history"),
+        #         ("human", "{input}"),
+        #     ]
+        # )
+        # self.question_answer_chain = create_stuff_documents_chain(self.llm, self.qa_prompt)
+        # self.rag_chain = create_retrieval_chain(self.history_aware_retriever, self.question_answer_chain)
+        # logger.info("RAG chain created")
 
         self.store = {}
 
-        self.conversational_rag_chain = RunnableWithMessageHistory(
-            self.rag_chain,
-            self.get_session_history,
-            input_messages_key="input",
-            history_messages_key="chat_history",
-            output_messages_key="answer",
-        )
-        logger.info("Conversational RAG chain created")
+        # self.conversational_rag_chain = RunnableWithMessageHistory(
+        #     self.rag_chain,
+        #     self.get_session_history,
+        #     input_messages_key="input",
+        #     history_messages_key="chat_history",
+        #     output_messages_key="answer",
+        # )
+        # logger.info("Conversational RAG chain created")
 
         # new changes ===========
 
