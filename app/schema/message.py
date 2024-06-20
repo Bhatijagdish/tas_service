@@ -27,3 +27,20 @@ class Response(BaseModel):
     sessionId: str
     history: list
     userIP: str
+
+
+class TokenCounter(BaseModel):
+    query: str
+
+
+class TypeAndID(BaseModel):
+    query: str
+
+
+class TypeAndID2(BaseModel):
+    query: str
+
+
+class TypeAndID3(BaseModel):
+    query: str
+

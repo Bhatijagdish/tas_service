@@ -2,10 +2,12 @@ import os
 import re
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
-from schema import QueryRequest, ChangeHistoryNameRequest, ViewHistoryRequest, ViewChatHistoryRequest
+from schema import (QueryRequest, ChangeHistoryNameRequest, ViewHistoryRequest,
+                    ViewChatHistoryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3)
 from ai import AsyncCallbackHandler, ConversationalRAG
 from crud import check_and_insert_session, update_history_name, get_history_list, get_chat_history, model_to_dict
 from db import Session, db_connection
+from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 
 router = APIRouter()
 
@@ -79,3 +81,23 @@ async def view_chat_history(request_body: ViewChatHistoryRequest, db: Session = 
         return JSONResponse(content={"chat_history": chat_list}, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/get_token_count")
+async def get_token_count(token_counter: TokenCounter):
+    return {"tokens": num_tokens_from_string(token_counter.query)}
+
+
+@router.post("/get_iframe")
+async def get_iframe(type_id: TypeAndID):
+    return {'iframe': iframe_link_generator(type_id.query)}
+
+
+@router.post("/get_source")
+async def source(type_id2: TypeAndID2):
+    return {'sources': source_link_generator(type_id2.query)}
+
+
+@router.post("/get_artist_img")
+async def artist_img(type_id3: TypeAndID3):
+    return {'sources': artist_img_generator(type_id3.query)}
