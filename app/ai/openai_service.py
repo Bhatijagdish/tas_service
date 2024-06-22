@@ -80,8 +80,8 @@ class ConversationalRAG:
 
         # Download and replace local vector store files
         os.makedirs("data/merged_vector", exist_ok=True)
-        self.download_and_replace_file("data/merged_vector/index.faiss")
-        self.download_and_replace_file("data/merged_vector/index.pkl")
+        # self.download_and_replace_file("data/merged_vector/index.faiss")
+        # self.download_and_replace_file("data/merged_vector/index.pkl")
 
         # self.loader = WebBaseLoader(
         #     web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
