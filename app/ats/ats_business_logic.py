@@ -150,8 +150,8 @@ def source_link_generator(sentence: str):
 
 def artist_img_generator(sentence: str):
     type_and_id_list = extract_type_and_id(sentence)
-    links = []
+    links_set = set()
     for type, id, _, _, _ in type_and_id_list:
         if type == 'artist':
-            links.append(f"https://www.theartstory.org/images20/ttip/{id}.jpg")
-    return links
+            links_set.add(f"https://www.theartstory.org/images20/ttip/{id}.jpg")
+    return list(links_set)

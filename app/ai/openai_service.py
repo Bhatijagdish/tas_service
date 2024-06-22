@@ -73,8 +73,8 @@ class ConversationalRAG:
 
         # Download and replace local vector store files
         os.makedirs("data/merged_vector", exist_ok=True)
-        self.download_and_replace_file("data/merged_vector/index.faiss")
-        self.download_and_replace_file("data/merged_vector/index.pkl")
+        # self.download_and_replace_file("data/merged_vector/index.faiss")
+        # self.download_and_replace_file("data/merged_vector/index.pkl")
 
         self.embeddings = OpenAIEmbeddings()
         self.vectorstore = FAISS.load_local("data/merged_vector", self.embeddings, allow_dangerous_deserialization=True)
