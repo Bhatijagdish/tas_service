@@ -5,9 +5,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from schema import (QueryRequest, ChangeHistoryNameRequest, ViewHistoryRequest,
                     ViewChatHistoryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3)
 from ai import AsyncCallbackHandler, ConversationalRAG
-from crud import check_and_insert_session, update_history_name, get_history_list, get_chat_history, model_to_dict
-from db import Session, db_connection
+from crud import model_to_dict, insert_message, get_recent_messages
+from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
+import uuid
 
 router = APIRouter()
 
@@ -21,27 +22,45 @@ ai = ConversationalRAG()
 @router.post("/get_response_from_ai")
 async def stream_response(request_body: QueryRequest, db: Session = Depends(db_connection)):
     try:
-        if not request_body.query or not request_body.session_id or not request_body.history_id:
-            error_message = "All 'query', 'session_id', and 'history_id' must be provided"
-            print(error_message)
+        if not request_body.query or not request_body.session_id:
+            error_message = "Both 'query' and 'session_id' must be provided"
             return JSONResponse(content={"error": error_message}, status_code=400)
 
-        check_and_insert_session(db, request_body.session_id, request_body.history_id)
-
+        history_id = str(uuid.uuid4())
         # Regex pattern to match the sections
-        pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
-
+        pattern = r'%query%(.*?)%\s*%instructions%(.*?)%'
         # Extracting the parts using regex
         matches = re.search(pattern, request_body.query)
-        prompt = question = resLen_string = ""
+        question = resLen_string = ""
         if matches:
-            prompt = matches.group(1).strip()
-            question = matches.group(2).strip()
-            resLen_string = matches.group(3).strip()
+            question = matches.group(1).strip()
+            resLen_string = matches.group(2).strip()
 
-        stream_it = AsyncCallbackHandler(db, request_body.history_id, request_body.query)
+        # Collecting the message objects from db
+        chat_history = get_recent_messages(db, session_id=request_body.session_id)
+
+        prompt = ""
+        if chat_history:
+            if len(chat_history) < ai.max_session_iteration:
+                for sender, message_text in chat_history:
+                    if sender.upper() == 'AI':
+                        pattern = r'\{.*?\}'
+                        matches = re.findall(pattern, message_text)
+                        ai_response = dict(matches).get('action_input')
+                        prompt += f"{sender.upper()}: {ai_response}"
+                    else:
+                        prompt += f"{sender.upper()}: {message_text}"
+            else:
+                prompt = ai.PREFIX_PROMPT
+        else:
+            prompt = ai.PREFIX_PROMPT
+
+        insert_message(db, request_body.session_id, history_id, 'human', question)
+
+        stream_it = AsyncCallbackHandler(db, request_body.session_id, history_id)
 
         gen = ai.create_gen(prompt, question, resLen_string, request_body.responseLength, stream_it)
+
         return StreamingResponse(gen, media_type="text/event-stream")
     except HTTPException as http_err:
         return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)

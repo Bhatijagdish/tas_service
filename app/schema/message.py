@@ -3,9 +3,7 @@ from pydantic import BaseModel
 
 class QueryRequest(BaseModel):
     query: str
-    history: list
     responseLength: str
-    history_id: str
     session_id: str
 
 

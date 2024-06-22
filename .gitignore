@@ -6,3 +6,4 @@ tas.log
 __pycache__/
 **/__pycache__/
 data/
+app/chatbot.db
