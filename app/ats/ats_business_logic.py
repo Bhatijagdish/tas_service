@@ -15,9 +15,9 @@ def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> i
 
 def iframe_link_generator(sentence: str):
     type_and_id_list = extract_type_and_id(sentence)
-    links = []
+    links = set()
     for type, id, name, sorting_score, occurrence in type_and_id_list:
-        links.append(f"https://www.theartstory.org/data/content/dynamic_content/ai-card/{type}/{re.sub('_', '-', id)}")
+        links.add(f"https://www.theartstory.org/data/content/dynamic_content/ai-card/{type}/{re.sub('_', '-', id)}")
     return links
 
 

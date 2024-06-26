@@ -7,7 +7,6 @@ def model_to_dict(model):
     """Convert a SQLAlchemy model instance into a dictionary."""
     if model is None:
         return None
-
     columns = [c.key for c in class_mapper(model.__class__).columns]
     return {c: getattr(model, c) for c in columns}
 
