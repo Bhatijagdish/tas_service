@@ -31,6 +31,7 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
         pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
         # Extracting the parts using regex
         matches = re.search(pattern, request_body.query)
+
         prompt = question = resLen_string = ""
         if matches:
             prompt = matches.group(1).strip()
@@ -102,7 +103,7 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
 
 @router.post("/get_token_count")
 async def get_token_count(token_counter: TokenCounter):
-    return {"tokens": get_last_ai_response(token_counter.query)}
+    return {"tokens": num_tokens_from_string(token_counter.query)}
 
 
 @router.post("/get_iframe")
