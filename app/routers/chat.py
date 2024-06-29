@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from schema import (QueryRequest, ChangeHistoryNameRequest, ViewHistoryRequest,
                     ViewChatHistoryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3)
 from ai import AsyncCallbackHandler, ConversationalRAG
-from crud import model_to_dict, insert_message, get_recent_messages
+from crud import model_to_dict, insert_message, get_recent_messages, get_last_ai_response
 from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
@@ -28,18 +28,18 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
 
         history_id = str(uuid.uuid4())
         # Regex pattern to match the sections
-        pattern = r'%query%(.*?)%\s*%instructions%(.*?)%'
+        pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
         # Extracting the parts using regex
         matches = re.search(pattern, request_body.query)
-        question = resLen_string = ""
+        prompt = question = resLen_string = ""
         if matches:
-            question = matches.group(1).strip()
-            resLen_string = matches.group(2).strip()
+            prompt = matches.group(1).strip()
+            question = matches.group(2).strip()
+            resLen_string = matches.group(3).strip()
 
         # Collecting the message objects from db
         chat_history = get_recent_messages(db, session_id=request_body.session_id)
 
-        prompt = ""
         if chat_history:
             if len(chat_history) < ai.max_session_iteration:
                 for sender, message_text in chat_history:
@@ -47,13 +47,11 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
                         pattern = r'\{.*?\}'
                         matches = re.findall(pattern, message_text)
                         ai_response = dict(matches).get('action_input')
-                        prompt += f"{sender.upper()}: {ai_response}"
-                    else:
-                        prompt += f"{sender.upper()}: {message_text}"
-            else:
-                prompt = ai.PREFIX_PROMPT
-        else:
-            prompt = ai.PREFIX_PROMPT
+                        prompt += f"\n{ai_response}\n"
+
+        logger.info(f"Prefix: {prompt}")
+        logger.info(f"Question: {question}")
+        logger.info(f"Response Length Chosen: {resLen_string}")
 
         insert_message(db, request_body.session_id, history_id, 'human', question)
 
@@ -104,7 +102,7 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
 
 @router.post("/get_token_count")
 async def get_token_count(token_counter: TokenCounter):
-    return {"tokens": num_tokens_from_string(token_counter.query)}
+    return {"tokens": get_last_ai_response(token_counter.query)}
 
 
 @router.post("/get_iframe")
