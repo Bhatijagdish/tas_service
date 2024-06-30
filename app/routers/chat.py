@@ -119,3 +119,8 @@ async def source(type_id2: TypeAndID2):
 @router.post("/get_artist_img")
 async def artist_img(type_id3: TypeAndID3):
     return {'sources': artist_img_generator(type_id3.query)}
+
+
+@router.get("/health")
+async def health():
+    return {"Smiling Face": "☺"}

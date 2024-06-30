@@ -12,7 +12,7 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=["*"],
                    allow_methods=["*"], )
 
-app.include_router(chat.router, prefix="/api")
+app.include_router(chat.router)
 
 DB_NAME = os.environ.get("DATABASE", "chatbot.db")
 
