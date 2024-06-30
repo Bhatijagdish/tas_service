@@ -1,4 +1,6 @@
 import os
+import re
+
 import openai
 import asyncio
 from dotenv import load_dotenv
@@ -59,7 +61,7 @@ class ConversationalRAG:
         self.bucket = os.environ.get("BUCKET_NAME")
         self.storage_client = storage.Client()
         self.llm = ChatOpenAI(
-            model_name="gpt-4",
+            model_name="gpt-4o",
             streaming=True,  # ! important
             callbacks=[]  # ! important (but we will add them later)
         )
@@ -103,7 +105,22 @@ class ConversationalRAG:
 
     async def run_call(self, prompt: str, query: str, resLen_String: str,
                        responseLength: str,
-                       stream_it: AsyncCallbackHandler):
+                       stream_it: AsyncCallbackHandler, chat_history: list):
+
+        ai_resp = user_resp = ""
+        if chat_history:
+            if len(chat_history) < self.max_session_iteration:
+                for sender, message_text in chat_history:
+                    if sender.upper() == 'AI':
+                        pattern = r'\{.*?\}'
+                        matches = re.findall(pattern, message_text)
+                        ai_response = dict(matches).get('action_input')
+                        ai_resp += f"\n{ai_response}\n"
+                    if sender.upper() == 'HUMAN':
+                        user_resp += f"\n{message_text}\n"
+
+        # user query
+        query += user_resp
         embedding_vector = OpenAIEmbeddings().embed_query(query)
         if responseLength == 'short':
             k = 4
@@ -115,17 +132,20 @@ class ConversationalRAG:
             k = 7
 
         docs = self.vectorstore.similarity_search_by_vector(embedding_vector, k)
+        # ai = response
         all_content = '\n'.join(doc.page_content for doc in docs)
-        prompt += f"\n\n{resLen_String}\n\n{all_content}\n\n{query}"
+        prompt += f"\n\n{resLen_String}\n\n{ai_resp}\n\n{all_content}\n\n{query}"
+
+        logger.info(f"Final Response sent to AI: {prompt}")
 
         # Assign callback handler
         self.agent.agent.llm_chain.llm.callbacks = [stream_it]
         await self.agent.acall(inputs={"input": prompt})
 
     async def create_gen(self, prompt: str, query: str, resLen_string: str, responseLength: str,
-                         stream_it: AsyncCallbackHandler):
+                         stream_it: AsyncCallbackHandler, chat_history: list):
         task = asyncio.create_task(self.run_call(prompt, query, resLen_string, responseLength,
-                                                 stream_it))
+                                                 stream_it, chat_history))
         async for token in stream_it.aiter():
             yield token
         await task
@@ -137,7 +157,6 @@ class ConversationalRAG:
             return_messages=True,
             output_key="output"
         )
-
         return initialize_agent(
             agent=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION,
             tools=[],

@@ -19,16 +19,16 @@ def insert_message(db: Session, session_id, history_id, sender, message_text):
     return message
 
 
-def get_recent_messages(db: Session, session_id=None, limit=5) -> list:
+def get_recent_messages(db: Session, session_id=None, limit=3) -> list:
     query = db.query(Messages).filter(Messages.session_id == session_id).order_by(Messages.timestamp.desc()).limit(
         limit).all()
     return [(msg.sender, msg.message_text) for msg in query[::-1]]
 
 
-def get_last_ai_response(db: Session, session_id=None, limit=5) -> str:
-    query = db.query(Messages).filter(Messages.session_id == session_id).order_by(Messages.timestamp.desc()).limit(
-        limit).all()
-    return query[-2].message_text + "\n\n" + query[-1].message_text
+# def get_last_ai_response(db: Session, session_id=None, limit=5) -> str:
+#     query = db.query(Messages).filter(Messages.session_id == session_id).order_by(Messages.timestamp.desc()).limit(
+#         limit).all()
+#     return query[-2].message_text + "\n\n" + query[-1].message_text
 
 
 def get_all_messages(db: Session, skip: int = 0, limit: int = 30) -> list:

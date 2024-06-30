@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from schema import (QueryRequest, ChangeHistoryNameRequest, ViewHistoryRequest,
                     ViewChatHistoryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3)
 from ai import AsyncCallbackHandler, ConversationalRAG
-from crud import model_to_dict, insert_message, get_recent_messages, get_last_ai_response
+from crud import model_to_dict, insert_message, get_recent_messages
 from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
@@ -37,18 +37,8 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
             prompt = matches.group(1).strip()
             question = matches.group(2).strip()
             resLen_string = matches.group(3).strip()
-
         # Collecting the message objects from db
         chat_history = get_recent_messages(db, session_id=request_body.session_id)
-
-        if chat_history:
-            if len(chat_history) < ai.max_session_iteration:
-                for sender, message_text in chat_history:
-                    if sender.upper() == 'AI':
-                        pattern = r'\{.*?\}'
-                        matches = re.findall(pattern, message_text)
-                        ai_response = dict(matches).get('action_input')
-                        prompt += f"\n{ai_response}\n"
 
         logger.info(f"Prefix: {prompt}")
         logger.info(f"Question: {question}")
@@ -58,7 +48,7 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
 
         stream_it = AsyncCallbackHandler(db, request_body.session_id, history_id)
 
-        gen = ai.create_gen(prompt, question, resLen_string, request_body.responseLength, stream_it)
+        gen = ai.create_gen(prompt, question, resLen_string, request_body.responseLength, stream_it, chat_history)
 
         return StreamingResponse(gen, media_type="text/event-stream")
     except HTTPException as http_err:
