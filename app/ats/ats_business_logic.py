@@ -19,6 +19,7 @@ def iframe_link_generator(sentence: str):
         links.add(f"https://www.theartstory.org/data/content/dynamic_content/ai-card/{type}/{re.sub('_', '-', id)}")
     return links
 
+
 # With Single Word Search (Unique added) + Multi Word Search
 def extract_type_and_id(sentence, database_file="database.csv"):
     # Initialize an empty list to store the results
@@ -106,6 +107,7 @@ def extract_type_and_id(sentence, database_file="database.csv"):
     sorted_results = sorted(scored_results, key=lambda x: x[3])
     return sorted_results
 
+
 # With Multi Word Search Only - iFrame Special Only
 def extract_type_and_id_2(sentence, database_file="database.csv"):
     # Initialize an empty list to store the results
@@ -179,6 +181,7 @@ def extract_type_and_id_2(sentence, database_file="database.csv"):
     # Sort the final results based on the scores
     sorted_results = sorted(scored_results, key=lambda x: x[3])
     return sorted_results
+
 
 def normalize_sentence(sentence):
     # Normalize sentence by removing possessive forms and converting to lowercase

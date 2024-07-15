@@ -44,8 +44,6 @@ def get_xml_files() -> Dict:
     data_dict = {"artist": [], "critic": [], "definition": [], "influencer": [], "movement": []}
     for path in paths:
         segments = path.split("/")
-        print(path)
-
         extracted_type = segments[1]
         extracted_id = segments[2]
 
@@ -358,51 +356,6 @@ def create_local_vector_store() -> None:
     vector_store.save_local(vector_store_path)
 
 
-# def generate_streaming_response(query: str, extracted_dict: Dict, docs: List[Document]):
-#     PREFIX = "INFO: You are Prof expert on art history. " \
-#              "You will answer the questions asked in details " \
-#              "and provide correct responses."
-#
-#     input_query = f"Main question is : {query}\n\n" \
-#                   f"This is the context: {'.'.join(doc.page_content for doc in docs)}\n"
-#
-#     response = client.chat.completions.create(
-#         model="gpt-4o",
-#         messages=[
-#             {"role": "system", "content": PREFIX},
-#             {"role": "user", "content": input_query}
-#         ],
-#         temperature=0,
-#         stream=True
-#     )
-#
-#     temp_dicts = []
-#     metadata = []
-#     counter = 0
-#     result = {"chat_id": None, "text_message": "", "data_id": None}
-#     for chunk in response:
-#         result['chat_id'] = chunk.id
-#         chunk_message = chunk.choices[0].delta.content  # Extract the message
-#         if chunk_message:
-#             result['text_message'] += chunk_message
-#             if '\n' in result['text_message']:
-#                 message = result['text_message']
-#                 chunks = message.split('\n')
-#                 final_chunk = chunks[counter]
-#                 counter = min(counter + 1, len(chunks) - 1)
-#                 if len(final_chunk) > 200:
-#                     dict_output = extract_highest_ratio_dict(extracted_dict, final_chunk)
-#                     if dict_output and dict_output not in temp_dicts:
-#                         temp_dicts.append(dict_output)
-#                         metadata.append(dict_output.get('url', None))
-#                         result['metadata'] = {'urls': metadata,
-#                                               'iframe': extracted_dict.get('iframe_link', None),
-#                                               'artist': extracted_dict.get('artist_image', None),
-#                                               'source': extracted_dict.get('source_link', None)
-#                                               }
-#             yield result
-#
-
 def delete_merged_vector(bucket_name="tas-website-data"):
     # Instantiates a client
     client = storage.Client()
@@ -423,7 +376,6 @@ def delete_merged_vector(bucket_name="tas-website-data"):
 def upload_merged_vector(bucket_name="tas-website-data"):
     # Instantiates a client
     client = storage.Client()
-
     # Get the bucket
     bucket = client.bucket(bucket_name)
 
@@ -449,7 +401,7 @@ def upload_merged_vector(bucket_name="tas-website-data"):
 if __name__ == '__main__':
     import sys
     vector_update_status = sys.argv[1]
-    if vector_update_status == "refresh":
+    if vector_update_status == "cloud_refresh":
         # Loading environment variables OPENAI_API_KEY is must
         load_dotenv()
         # creating local vector store
@@ -458,3 +410,8 @@ if __name__ == '__main__':
         delete_merged_vector()
         # uploading vector store from local to cloud
         upload_merged_vector()
+    if vector_update_status == "local_refresh":
+        # Loading environment variables OPENAI_API_KEY is must
+        load_dotenv()
+        # creating local vector store
+        create_local_vector_store()
