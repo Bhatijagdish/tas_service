@@ -1,3 +1,4 @@
+import json
 import os
 import re
 
@@ -14,6 +15,7 @@ from langchain_community.vectorstores import FAISS
 from google.cloud import storage
 from db import Session, logger
 from crud import insert_message
+from openai import OpenAI
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -60,6 +62,7 @@ class ConversationalRAG:
     def __init__(self):
         self.bucket = os.environ.get("BUCKET_NAME")
         self.storage_client = storage.Client()
+        self.openai_client = OpenAI()
         self.llm = ChatOpenAI(
             model_name="gpt-4o",
             streaming=True,  # ! important
@@ -168,3 +171,54 @@ class ConversationalRAG:
             memory=memory,
             return_intermediate_steps=False
         )
+
+    async def response_generator(self, prompt: str, query: str, resLen_String: str,
+                                 responseLength: str, chat_history: list):
+
+        ai_resp = user_resp = ""
+        if chat_history:
+            if len(chat_history) < self.max_session_iteration:
+                for sender, message_text in chat_history:
+                    if sender.upper() == 'AI':
+                        pattern = r'\{.*?\}'
+                        matches = re.findall(pattern, message_text)
+                        ai_response = dict(matches).get('action_input')
+                        ai_resp += f"\n{ai_response}\n"
+                    if sender.upper() == 'HUMAN':
+                        user_resp += f"\n{message_text}\n"
+
+        # user query
+        query += user_resp
+        embedding_vector = OpenAIEmbeddings().embed_query(query)
+        if responseLength == 'short':
+            k = 4
+        elif responseLength == 'medium':
+            k = 8
+        elif responseLength == 'long':
+            k = 12
+        else:
+            k = 7
+
+        docs = self.vectorstore.similarity_search_by_vector(embedding_vector, k)
+        data_id = docs[0].metadata['id']
+        doc_idx = docs[0].metadata['doc_index']
+
+        # ai = response
+        all_content = '\n'.join(doc.page_content for doc in docs)
+
+        response = self.openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"\n\n{resLen_String}\n\n{ai_resp}\n\n{all_content}\n\n{query}"}
+            ],
+            temperature=0,
+            stream=True
+        )
+        result = {"chat_id": None, "text_message": "", "data_id": data_id, "doc_index": doc_idx}
+        for chunk in response:
+            result['chat_id'] = chunk.id
+            chunk_message = chunk.choices[0].delta.content  # Extract the message
+            if chunk_message:
+                result['text_message'] += chunk_message
+                yield json.dumps(result) + '\n\n\n\n'

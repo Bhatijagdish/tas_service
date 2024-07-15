@@ -42,3 +42,20 @@ class TypeAndID2(BaseModel):
 class TypeAndID3(BaseModel):
     query: str
 
+
+class MetadataQuery(BaseModel):
+    data_id: str
+    index: int
+
+
+class QueryUrls(BaseModel):
+    data_id: str
+    chunk: str
+    index: int
+
+
+class ChatHistoryRequest(BaseModel):
+    query: str
+    history_id: str
+    session_id: str
+    sender: str

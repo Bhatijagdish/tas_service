@@ -1,22 +1,25 @@
 import os
 import re
+from typing import List, Dict
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
-from schema import (QueryRequest, ChangeHistoryNameRequest, ViewHistoryRequest,
-                    ViewChatHistoryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3)
+from schema import (QueryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3,
+                    QueryUrls, MetadataQuery, ChatHistoryRequest)
 from ai import AsyncCallbackHandler, ConversationalRAG
 from crud import model_to_dict, insert_message, get_recent_messages
 from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
+from ats_refresh import create_local_database
+from lib import extract_highest_ratio_dict
 
 router = APIRouter()
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 DB_NAME = os.environ.get("DATABASE", "chatbot.db")
 os.environ['USER_AGENT'] = 'MyApp/1.0.0'
 
 ai = ConversationalRAG()
+metadata: List[Dict] = create_local_database()
 
 
 @router.post("/get_response_from_ai")
@@ -57,40 +60,6 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-# @router.post("/change_history_name")
-# async def change_history_name(request_body: ChangeHistoryNameRequest, db: Session = Depends(db_connection)):
-#     try:
-#         update_history_name(db, request_body.session_id, request_body.history_id, request_body.new_name)
-#         return JSONResponse(content={"message": f"History name updated successfully with history id: "
-#                                                 f"{request_body.history_id}"}, status_code=200)
-#     except HTTPException as http_err:
-#         return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
-#     except Exception as e:
-#         return JSONResponse(content={"error": str(e)}, status_code=500)
-#
-#
-# @router.post("/view_history_id_list")
-# async def view_history_id_list(request_body: ViewHistoryRequest, db: Session = Depends(db_connection)):
-#     try:
-#         history_list = get_history_list(db, request_body.session_id)
-#         history_list_dict = [model_to_dict(history) for history in history_list]
-#         return JSONResponse(content={"history_list": history_list_dict}, status_code=200)
-#     except HTTPException as http_err:
-#         return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
-#     except Exception as e:
-#         return JSONResponse(content={"error": str(e)}, status_code=500)
-#
-#
-# @router.post("/view_chat_history")
-# async def view_chat_history(request_body: ViewChatHistoryRequest, db: Session = Depends(db_connection)):
-#     try:
-#         chat_history = get_chat_history(db, request_body.history_id)
-#         chat_list = [model_to_dict(history) for history in chat_history]
-#         return JSONResponse(content={"chat_history": chat_list}, status_code=200)
-#     except Exception as e:
-#         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
 @router.post("/get_token_count")
 async def get_token_count(token_counter: TokenCounter):
     return {"tokens": num_tokens_from_string(token_counter.query)}
@@ -114,3 +83,99 @@ async def artist_img(type_id3: TypeAndID3):
 @router.get("/health")
 async def health():
     return {"Smiling Face": "☺"}
+
+
+############################################################################
+
+@router.post("/generate_response")
+async def generate_response(request_body: QueryRequest, db: Session = Depends(db_connection)):
+    try:
+        if not request_body.query or not request_body.session_id:
+            error_message = "Both 'query' and 'session_id' must be provided"
+            return JSONResponse(content={"error": error_message}, status_code=400)
+
+        history_id = str(uuid.uuid4())
+        # Regex pattern to match the sections
+        pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
+        # Extracting the parts using regex
+        matches = re.search(pattern, request_body.query)
+
+        prompt = question = resLen_string = ""
+        if matches:
+            prompt = matches.group(1).strip()
+            question = matches.group(2).strip()
+            resLen_string = matches.group(3).strip()
+        # Collecting the message objects from db
+        chat_history = get_recent_messages(db, session_id=request_body.session_id)
+
+        logger.info(f"Prefix: {prompt}")
+        logger.info(f"Question: {question}")
+        logger.info(f"Response Length Chosen: {resLen_string}")
+
+        insert_message(db, request_body.session_id, history_id, 'human', question)
+
+        return StreamingResponse(ai.response_generator(prompt, question, resLen_string,
+                                                       request_body.responseLength, chat_history),
+                                 media_type="application/json")
+    except HTTPException as http_err:
+        return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post('/update_chat_history')
+async def update_chat_history(query: ChatHistoryRequest, db: Session = Depends(db_connection)):
+    try:
+        if query.sender not in {'ai', 'human'}:
+            return JSONResponse(content={"Please include sender either 'ai' or 'human'"}, status_code=400)
+        insert_message(db, query.session_id, query.history_id, 'human', query.query)
+        return JSONResponse(content={"Chat history updated successfully."}, status_code=400)
+    except HTTPException as http_err:
+        return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post('/get_urls')
+async def get_metadata(query: QueryUrls):
+    try:
+        extracted_dict = metadata[query.index].get(query.data_id, {})
+        dict_output = extract_highest_ratio_dict(extracted_dict, query.chunk)
+        return JSONResponse(content={
+            'urls': dict_output.get('url', None)
+        }, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get('/get_iframe_link')
+async def get_metadata(query: MetadataQuery):
+    try:
+        extracted_dict = metadata[query.index].get(query.data_id, {})
+        return JSONResponse(content={
+            'iframe': extracted_dict.get('iframe_link', None)
+        }, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get('/get_artist_image_link')
+async def get_metadata(query: MetadataQuery):
+    try:
+        extracted_dict = metadata[query.index].get(query.data_id, {})
+        return JSONResponse(content={
+            'artist': extracted_dict.get('artist_image', None)
+        }, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get('/get_source_link')
+async def get_metadata(query: MetadataQuery):
+    try:
+        extracted_dict = metadata[query.index].get(query.data_id, {})
+        return JSONResponse(content={
+            'source': extracted_dict.get('source_link', None)
+        }, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
