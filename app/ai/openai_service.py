@@ -76,12 +76,12 @@ class ConversationalRAG:
         self.max_session_iteration = 10
 
         # Download and replace local vector store files
-        os.makedirs("data/merged_vector", exist_ok=True)
-        self.download_and_replace_file("data/merged_vector/index.faiss")
-        self.download_and_replace_file("data/merged_vector/index.pkl")
+        # os.makedirs("data/merged_vector", exist_ok=True)
+        # self.download_and_replace_file("data/merged_vector/index.faiss")
+        # self.download_and_replace_file("data/merged_vector/index.pkl")
 
         self.embeddings = OpenAIEmbeddings()
-        self.vectorstore = FAISS.load_local("data/merged_vector", self.embeddings, allow_dangerous_deserialization=True)
+        self.vectorstore = FAISS.load_local("data/vector_store", self.embeddings, allow_dangerous_deserialization=True)
         self.agent = self.create_tas_agent()
 
     def download_cs_file(self, file_name, destination_file_name):
