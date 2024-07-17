@@ -45,13 +45,11 @@ class TypeAndID3(BaseModel):
 
 class MetadataQuery(BaseModel):
     data_id: str
-    index: int
 
 
 class QueryUrls(BaseModel):
     data_id: str
     chunk: str
-    index: int
 
 
 class ChatHistoryRequest(BaseModel):

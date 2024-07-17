@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from typing import List, Dict
@@ -10,7 +11,6 @@ from crud import model_to_dict, insert_message, get_recent_messages
 from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
-from ats_refresh import create_local_database
 from lib import extract_highest_ratio_dict
 
 router = APIRouter()
@@ -19,7 +19,7 @@ DB_NAME = os.environ.get("DATABASE", "chatbot.db")
 os.environ['USER_AGENT'] = 'MyApp/1.0.0'
 
 ai = ConversationalRAG()
-metadata: List[Dict] = create_local_database()
+JSON_STORE_PATH = "data/json_files/"
 
 
 @router.post("/get_response_from_ai")
@@ -94,7 +94,6 @@ async def generate_response(request_body: QueryRequest, db: Session = Depends(db
             error_message = "Both 'query' and 'session_id' must be provided"
             return JSONResponse(content={"error": error_message}, status_code=400)
 
-        history_id = str(uuid.uuid4())
         # Regex pattern to match the sections
         pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
         # Extracting the parts using regex
@@ -111,8 +110,6 @@ async def generate_response(request_body: QueryRequest, db: Session = Depends(db
         logger.info(f"Prefix: {prompt}")
         logger.info(f"Question: {question}")
         logger.info(f"Response Length Chosen: {resLen_string}")
-
-        insert_message(db, request_body.session_id, history_id, 'human', question)
 
         return StreamingResponse(ai.response_generator(prompt, question, resLen_string,
                                                        request_body.responseLength, chat_history),
@@ -139,7 +136,10 @@ async def update_chat_history(query: ChatHistoryRequest, db: Session = Depends(d
 @router.post('/get_urls')
 async def get_metadata(query: QueryUrls):
     try:
-        extracted_dict = metadata[query.index].get(query.data_id, {})
+        file = f"{query.data_id}.json"
+        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+        with open(file_name, 'r') as f:
+            extracted_dict = json.load(f)[query.data_id]
         dict_output = extract_highest_ratio_dict(extracted_dict, query.chunk)
         return JSONResponse(content={
             'urls': dict_output.get('url', None)
@@ -148,21 +148,27 @@ async def get_metadata(query: QueryUrls):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.get('/get_iframe_link')
+@router.post('/get_iframe_link')
 async def get_metadata(query: MetadataQuery):
     try:
-        extracted_dict = metadata[query.index].get(query.data_id, {})
+        file = f"{query.data_id}.json"
+        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+        with open(file_name, 'r') as f:
+            extracted_dict = json.load(f)[query.data_id]
         return JSONResponse(content={
             'iframe': extracted_dict.get('iframe_link', None)
         }, status_code=200)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
-@router.get('/get_artist_image_link')
+@router.post('/get_artist_image_link')
 async def get_metadata(query: MetadataQuery):
     try:
-        extracted_dict = metadata[query.index].get(query.data_id, {})
+        file = f"{query.data_id}.json"
+        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+        with open(file_name, 'r') as f:
+            extracted_dict = json.load(f)[query.data_id]
         return JSONResponse(content={
             'artist': extracted_dict.get('artist_image', None)
         }, status_code=200)
@@ -170,10 +176,13 @@ async def get_metadata(query: MetadataQuery):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.get('/get_source_link')
+@router.post('/get_source_link')
 async def get_metadata(query: MetadataQuery):
     try:
-        extracted_dict = metadata[query.index].get(query.data_id, {})
+        file = f"{query.data_id}.json"
+        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+        with open(file_name, 'r') as f:
+            extracted_dict = json.load(f)[query.data_id]
         return JSONResponse(content={
             'source': extracted_dict.get('source_link', None)
         }, status_code=200)
