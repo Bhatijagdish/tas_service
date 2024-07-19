@@ -1,3 +1,5 @@
+import shutil
+import time
 import xml.etree.ElementTree as ET
 import re
 import os
@@ -15,8 +17,8 @@ from langchain_openai import OpenAIEmbeddings
 from google.cloud import storage
 from dotenv import load_dotenv
 
-vector_store_path = "data/vector_store/"
-json_store_path = "data/json_files/"
+VECTOR_STORE_PATH = "data/vector_store/"
+JSON_STORE_PATH = "data/json_files/"
 
 
 def fetch_and_parse_xml(url: str) -> Union[ET.Element, None]:
@@ -307,7 +309,75 @@ def extract_extra_links(root: ET.Element, category_name: str) -> List[Dict]:
 def lazy_load(dictionaries: List) -> Iterator[Document]:
     for i, doc in enumerate(dictionaries):
         page_content = json.dumps(doc, indent=2)
-        yield Document(page_content=page_content, metadata={"source": doc['type'], "id": doc['id'], "doc_index": i})
+        yield Document(page_content=page_content, metadata={"source": doc['type'], "id": doc['id'], "doc_index": i,
+                                                            "json_file": doc["json_file"], "xml_file": doc["xml_file"]})
+
+
+def create_json_file(file_name, content):
+    try:
+        file_path = os.path.join(JSON_STORE_PATH, file_name).replace("\\", "/")
+        with open(file_path, 'w+') as json_file:
+            json.dump(content, json_file, indent=4)
+        print(f"File '{file_name}' created successfully.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+def create_partial_local_database(vector_store):
+    deleted_ids = []
+    added_data = []
+
+    actual_data: List[Dict] = create_local_database()
+    expected_data: List[Dict] = []
+    for file in os.listdir(JSON_STORE_PATH):
+        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+        with open(file_name, 'w+') as f:
+            expected_data.append(json.load(f))
+
+    # Check for deleted files
+    actual_file_names = {item.get("json_file") for item in actual_data}
+    expected_file_names = {item.get("json_file") for item in expected_data}
+
+    files_to_delete = expected_file_names - actual_file_names
+    for file_name in files_to_delete:
+        file_path = os.path.join(JSON_STORE_PATH, file_name).replace("\\", "/")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        for k_id, values in vector_store.docstore._dict.items():
+            if file_name == values.metadata['json_file']:
+                deleted_ids.append(k_id)
+
+    # Check for added or changed files
+    for item in actual_data:
+        json_file = item.get("json_file")
+        file_path = os.path.join(JSON_STORE_PATH, json_file).replace("\\", "/")
+        if item not in expected_data:
+            with open(file_path, 'w+') as f:
+                json.dump(item, f, indent=4)
+            added_data.append(item)
+        else:
+            expected_item = next((exp_item for exp_item in expected_data if exp_item['json_file'] == json_file), None)
+            if expected_item and expected_item != item:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                with open(file_path, 'w+') as f:
+                    json.dump(item, f, indent=4)
+                added_data.append(item)
+
+                for k_id, values in vector_store.docstore._dict.items():
+                    if json_file == values.metadata['json_file']:
+                        deleted_ids.append(k_id)
+
+    if deleted_ids:
+        vector_store.delete(deleted_ids)
+
+    if added_data:
+        new_vector_store = get_vector_store(added_data)
+        vector_store.merge_from(new_vector_store)
+        vector_store.save_local(VECTOR_STORE_PATH)
+
+    return vector_store
 
 
 def create_local_database() -> List[Dict]:
@@ -317,7 +387,6 @@ def create_local_database() -> List[Dict]:
     for key, values in data_dict.items():
         for value in values:
             root = fetch_and_parse_xml(value)
-            # file_name = f"{os.path.basename(value)[:-4]}.json"
             if root is not None:
                 inner_dict = {}
                 if key == 'artist':
@@ -330,30 +399,39 @@ def create_local_database() -> List[Dict]:
                     inner_dict = extract_influencer_data(root)
                 elif key == 'movement':
                     inner_dict = extract_movement_data(root)
+                file_name = f"{os.path.basename(value)[:-4]}.json"
+                inner_dict['json_file'] = file_name
+                inner_dict['xml_file'] = value
                 final_data.append(inner_dict)
     return final_data
 
 
-def create_local_vector_store() -> None:
-
-    if not os.path.exists(json_store_path):
-        os.makedirs(json_store_path, exist_ok=True)
-
-    final_data = create_local_database()
-
+def get_vector_store(data: List[Dict]):
     embeddings = OpenAIEmbeddings()
-
-    if os.path.exists(vector_store_path):
-        os.remove(vector_store_path)
 
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=400,
         length_function=len
     )
-    split_docs = text_splitter.split_documents(lazy_load(final_data))
-    vector_store = FAISS.from_documents(split_docs, embeddings)
-    vector_store.save_local(vector_store_path)
+    split_docs = text_splitter.split_documents(lazy_load(data))
+    return FAISS.from_documents(split_docs, embeddings)
+
+
+def create_local_vector_store() -> None:
+    if not os.path.exists(JSON_STORE_PATH):
+        os.makedirs(JSON_STORE_PATH, exist_ok=True)
+
+    final_data = create_local_database()
+
+    for inner_dict in final_data:
+        create_json_file(inner_dict['json_file'], inner_dict)
+
+    if os.path.exists(VECTOR_STORE_PATH):
+        shutil.rmtree(VECTOR_STORE_PATH)
+
+    vector_store = get_vector_store(final_data)
+    vector_store.save_local(VECTOR_STORE_PATH)
 
 
 def delete_merged_vector(bucket_name="tas-website-data"):
@@ -364,13 +442,13 @@ def delete_merged_vector(bucket_name="tas-website-data"):
     bucket = client.bucket(bucket_name)
 
     # List all blobs in the folder
-    blobs = bucket.list_blobs(prefix=vector_store_path)
+    blobs = bucket.list_blobs(prefix=VECTOR_STORE_PATH)
 
     # Delete each blob in the folder
     for blob in blobs:
         blob.delete()
 
-    return f"Folder '{vector_store_path}' deleted successfully."
+    return f"Folder '{VECTOR_STORE_PATH}' deleted successfully."
 
 
 def upload_merged_vector(bucket_name="tas-website-data"):
@@ -380,15 +458,15 @@ def upload_merged_vector(bucket_name="tas-website-data"):
     bucket = client.bucket(bucket_name)
 
     # Creating a Folder in Bucket
-    bucket.blob(vector_store_path)
+    bucket.blob(VECTOR_STORE_PATH)
 
     # List all files in the local folder
-    local_files = os.listdir(vector_store_path)
+    local_files = os.listdir(VECTOR_STORE_PATH)
 
     # Upload each file to the cloud folder
     for local_file in local_files:
-        local_file_path = os.path.join(vector_store_path, local_file)
-        cloud_file_path = os.path.join(vector_store_path, local_file)
+        local_file_path = os.path.join(VECTOR_STORE_PATH, local_file)
+        cloud_file_path = os.path.join(VECTOR_STORE_PATH, local_file)
 
         cloud_file_path = cloud_file_path.replace("\\", "/")
 
@@ -400,18 +478,32 @@ def upload_merged_vector(bucket_name="tas-website-data"):
 
 if __name__ == '__main__':
     import sys
+
+    print("Executing vector refresh")
     vector_update_status = sys.argv[1]
-    if vector_update_status == "cloud_refresh":
-        # Loading environment variables OPENAI_API_KEY is must
-        load_dotenv()
+    # Loading environment variables OPENAI_API_KEY is must
+    load_dotenv()
+    start_time = time.time()
+    if vector_update_status == "initial_cloud_refresh":
         # creating local vector store
         create_local_vector_store()
         # deleting vector store from cloud
         delete_merged_vector()
         # uploading vector store from local to cloud
         upload_merged_vector()
-    if vector_update_status == "local_refresh":
-        # Loading environment variables OPENAI_API_KEY is must
-        load_dotenv()
+    elif vector_update_status == "local_refresh":
+        # It would take approximate 40 minutes to generate new vector store for whole xml files
         # creating local vector store
         create_local_vector_store()
+    elif vector_update_status == "partial_cloud_refresh":
+        # check if there is any change happened in xml files
+        embeddings = OpenAIEmbeddings()
+        vectorstore = None
+        if os.path.exists(VECTOR_STORE_PATH):
+            vectorstore = FAISS.load_local(VECTOR_STORE_PATH, embeddings, allow_dangerous_deserialization=True)
+        else:
+            raise ValueError("data/vector_store should exists")
+        create_partial_local_database(vectorstore)
+        # add or remove json file based on changes
+        # if changes happened then please update the vector store
+    print(f"Execution took {time.time() - start_time} seconds")

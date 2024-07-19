@@ -20,7 +20,6 @@ from openai import OpenAI
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-
 class AsyncCallbackHandler(AsyncIteratorCallbackHandler):
     content: str = ""
     final_answer: bool = False
@@ -200,11 +199,16 @@ class ConversationalRAG:
             k = 7
 
         docs = self.vectorstore.similarity_search_by_vector(embedding_vector, k)
-        data_id = docs[0].metadata['id']
-        doc_idx = docs[0].metadata['doc_index']
 
-        # ai = response
-        all_content = '\n'.join(doc.page_content for doc in docs)
+        all_content = ""
+        data_ids = set()
+        data_types = set()
+        for doc in docs:
+            all_content += f"{doc.page_content}\n"
+            data_ids.add(doc.metadata['id'])
+            data_types.add(doc.metadata['source'])
+
+        # all_content = "\n".join(doc.page_content for doc in docs)
 
         response = self.openai_client.chat.completions.create(
             model="gpt-4o",
@@ -215,7 +219,7 @@ class ConversationalRAG:
             temperature=0,
             stream=True
         )
-        result = {"chat_id": None, "text_message": "", "data_id": data_id, "doc_index": doc_idx}
+        result = {"chat_id": None, "text_message": "", "data_id": list(data_ids), "data_type": list(data_types)}
         for chunk in response:
             result['chat_id'] = chunk.id
             chunk_message = chunk.choices[0].delta.content  # Extract the message

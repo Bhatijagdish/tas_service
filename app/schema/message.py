@@ -1,3 +1,4 @@
+from typing import List
 from pydantic import BaseModel
 
 
@@ -49,6 +50,11 @@ class MetadataQuery(BaseModel):
 
 class QueryUrls(BaseModel):
     data_id: str
+    chunk: str
+
+
+class FetchDataId(BaseModel):
+    data_ids: List[str]
     chunk: str
 
 
