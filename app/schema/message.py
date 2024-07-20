@@ -54,7 +54,6 @@ class QueryUrls(BaseModel):
 
 
 class FetchDataId(BaseModel):
-    data_ids: List[str]
     chunk: str
 
 

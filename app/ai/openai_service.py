@@ -20,6 +20,7 @@ from openai import OpenAI
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+
 class AsyncCallbackHandler(AsyncIteratorCallbackHandler):
     content: str = ""
     final_answer: bool = False
@@ -60,7 +61,8 @@ class ConversationalRAG:
 
     def __init__(self):
         self.bucket = os.environ.get("BUCKET_NAME")
-        self.storage_client = storage.Client()
+        # Google client
+        # self.storage_client = storage.Client()
         self.openai_client = OpenAI()
         self.llm = ChatOpenAI(
             model_name="gpt-4o",
@@ -187,7 +189,7 @@ class ConversationalRAG:
                         user_resp += f"\n{message_text}\n"
 
         # user query
-        query += user_resp
+        query = f"{user_resp}\n\n{query}"
         embedding_vector = OpenAIEmbeddings().embed_query(query)
         if responseLength == 'short':
             k = 4
@@ -201,14 +203,16 @@ class ConversationalRAG:
         docs = self.vectorstore.similarity_search_by_vector(embedding_vector, k)
 
         all_content = ""
-        data_ids = set()
-        data_types = set()
+        data_ids = []
+        data_types = []
         for doc in docs:
             all_content += f"{doc.page_content}\n"
-            data_ids.add(doc.metadata['id'])
-            data_types.add(doc.metadata['source'])
-
-        # all_content = "\n".join(doc.page_content for doc in docs)
+            doc_id = doc.metadata['id']
+            doc_type = doc.metadata['source']
+            if doc_id not in data_ids:
+                data_ids.append(doc_id)
+            if doc_type not in data_types:
+                data_types.append(doc_type)
 
         response = self.openai_client.chat.completions.create(
             model="gpt-4o",
@@ -219,7 +223,7 @@ class ConversationalRAG:
             temperature=0,
             stream=True
         )
-        result = {"chat_id": None, "text_message": "", "data_id": list(data_ids), "data_type": list(data_types)}
+        result = {"chat_id": None, "text_message": "", "data_id": data_ids, "data_type": data_types}
         for chunk in response:
             result['chat_id'] = chunk.id
             chunk_message = chunk.choices[0].delta.content  # Extract the message

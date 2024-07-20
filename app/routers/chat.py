@@ -1,7 +1,6 @@
 import json
 import os
 import re
-from typing import List, Dict
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from schema import (QueryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3,
@@ -11,8 +10,8 @@ from crud import model_to_dict, insert_message, get_recent_messages
 from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
-from lib import extract_highest_ratio_dict, get_confidence_score
-from pathlib import Path
+from lib import extract_highest_ratio_dict, get_metadata_id,get_best_metadata_id
+import string
 
 router = APIRouter()
 
@@ -88,46 +87,11 @@ async def health():
 
 ############################################################################
 
-def extract_highest_ratio(nested_dict: Dict, match_str: str) -> float:
-    highest_ratio = 0
-
-    def traverse_dict(d):
-        nonlocal highest_ratio
-        for key, value in d.items():
-            if isinstance(value, dict):
-                traverse_dict(value)
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        traverse_dict(item)
-                    elif isinstance(item, str):
-                        confidence = get_confidence_score(item, match_str)
-                        if confidence > highest_ratio:
-                            highest_ratio = confidence
-            elif isinstance(value, str):
-                confidence = get_confidence_score(value, match_str)
-                if confidence > highest_ratio:
-                    highest_ratio = confidence
-
-    traverse_dict(nested_dict)
-    return highest_ratio
-
 
 @router.post("/get_valid_data_id")
-def get_valid_data_id(query: FetchDataId):
-    best_match_file = None
-    highest_ratio = 0
-    for item in query.data_ids:
-        file_path = Path(JSON_STORE_PATH) / f"{item}.json"
-        with file_path.open('r') as f:
-            extracted_dict = json.load(f).get(item, {})
-
-        confidence = extract_highest_ratio(extracted_dict, query.chunk)
-        if confidence > highest_ratio:
-            highest_ratio = confidence
-            best_match_file = item
-
-    return {"best_match_file": best_match_file}
+def find_best_match_id(query: FetchDataId):
+    best_match_id, _ = get_metadata_id(JSON_STORE_PATH, query.chunk)
+    return JSONResponse(content={"best_match_id": best_match_id})
 
 
 @router.post("/generate_response")
