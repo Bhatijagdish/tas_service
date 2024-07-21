@@ -1,5 +1,5 @@
 import os
-from lib import setup_logger
+from lib import logger
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -8,7 +8,6 @@ import asyncio
 
 DATABASE_CONNECTION_ATTEMPTS = 10
 DATABASE_CONNECTION_TIMEOUT = 2
-logger = setup_logger()
 DB_NAME = os.environ.get("DATABASE", "chatbot.db")
 db_engine = create_engine(f"sqlite:///{DB_NAME}", echo=True)
 

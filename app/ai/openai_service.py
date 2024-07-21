@@ -125,7 +125,7 @@ class ConversationalRAG:
 
         # user query
         query += user_resp
-        embedding_vector = OpenAIEmbeddings().embed_query(query)
+        embedding_vector = self.embeddings.embed_query(query)
         if responseLength == 'short':
             k = 4
         elif responseLength == 'medium':
@@ -153,6 +153,16 @@ class ConversationalRAG:
         async for token in stream_it.aiter():
             yield token
         await task
+
+    async def get_heading_url(self, query):
+        embedding_vector = self.embeddings.embed_query(query.lower())
+        image_vector_store = FAISS.load_local("data/image_vector", self.embeddings, allow_dangerous_deserialization=True)
+        docs = image_vector_store.similarity_search_by_vector(embedding_vector, 3)
+        for doc in docs:
+            url = doc.metadata['source']
+            if url:
+                return url
+        return None
 
     def create_tas_agent(self):
         memory = ConversationBufferWindowMemory(

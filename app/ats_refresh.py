@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 VECTOR_STORE_PATH = "data/vector_store/"
 JSON_STORE_PATH = "data/json_files/"
+IMAGE_STORE_PATH = "data/image_vector"
 
 
 def fetch_and_parse_xml(url: str) -> Union[ET.Element, None]:
@@ -313,6 +314,51 @@ def lazy_load(dictionaries: List) -> Iterator[Document]:
                                                             "json_file": doc["json_file"], "xml_file": doc["xml_file"]})
 
 
+def images_loader(dictionaries: List) -> Iterator[Document]:
+    for i, doc in enumerate(dictionaries):
+        page_content = f"{json.dumps(doc['title'], indent=2)} {json.dumps(doc['alternate_title'], indent=2)}"
+        yield Document(page_content=page_content, metadata={"source": doc['url'], "doc_id": doc['id']})
+
+
+def get_all_images():
+    data = []
+    for item in os.listdir(JSON_STORE_PATH):
+        doc_id = item[:-5]
+        url = f"https://www.theartstory.org/images20/ttip/{doc_id}.jpg"
+        title = doc_id.replace("_", " ")
+        alternate_title = " ".join(doc_id.split("_")[::-1])
+        data.append({"title": title, "alternate_title": alternate_title, "url": url, "id": doc_id})
+        file_path = os.path.join(JSON_STORE_PATH, item).replace("\\", "/")
+        with open(os.path.join(file_path), "r") as file:
+            json_data = json.load(file)[doc_id]
+            sections = json_data.get('sections')
+            if sections:
+                for section in sections:
+                    sub_sections = section.get('sub_sections')
+                    for section_id in sub_sections:
+                        section_title = section_id.get('title')
+                        section_alternate_title = " ".join(
+                            section_title.split()[::-1]) if section_title else section_title
+                        urls = section.get('url')
+                        section_url = ""
+                        if urls:
+                            for url in urls:
+                                section_url += url['url']
+                        data.append({"title": section_title, "alternate_title": section_alternate_title,
+                                     "url": section_url, "id": doc_id})
+            artworks = json_data.get('artworks')
+            if artworks:
+                for artwork in artworks:
+                    artwork_title = artwork.get('title')
+                    artwork_alt_title = " ".join(artwork_title.split()[::-1]) if artwork_title else artwork_title
+                    artwork_url = artwork.get('url')
+                    data.append({"title": artwork_title, "alternate_title": artwork_alt_title,
+                                 "url": artwork_url, "id": doc_id})
+
+    with open("data/images.json", "w+") as file:
+        file.write(json.dumps(data))
+
+
 def create_json_file(file_name, content):
     try:
         file_path = os.path.join(JSON_STORE_PATH, file_name).replace("\\", "/")
@@ -418,6 +464,18 @@ def get_vector_store(data: List[Dict]):
     return FAISS.from_documents(split_docs, embeddings)
 
 
+def get_image_vector_store(data: List[Dict]):
+    embeddings = OpenAIEmbeddings()
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=400,
+        length_function=len
+    )
+    split_docs = text_splitter.split_documents(images_loader(data))
+    return FAISS.from_documents(split_docs, embeddings)
+
+
 def create_local_vector_store() -> None:
     if not os.path.exists(JSON_STORE_PATH):
         os.makedirs(JSON_STORE_PATH, exist_ok=True)
@@ -474,7 +532,6 @@ def upload_merged_vector(bucket_name="tas-website-data"):
         blob.upload_from_filename(local_file_path)
 
         print(f"File {local_file} uploaded to {cloud_file_path}.")
-
 
 if __name__ == '__main__':
     import sys

@@ -10,7 +10,7 @@ from crud import model_to_dict, insert_message, get_recent_messages
 from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
-from lib import extract_highest_ratio_dict, get_metadata_id,get_best_metadata_id
+from lib import extract_highest_ratio_dict, get_metadata_id, get_best_metadata_id, get_all_artists_ids
 import string
 
 router = APIRouter()
@@ -20,6 +20,7 @@ os.environ['USER_AGENT'] = 'MyApp/1.0.0'
 
 ai = ConversationalRAG()
 JSON_STORE_PATH = "data/json_files/"
+artists_ids = get_all_artists_ids(JSON_STORE_PATH)
 
 
 @router.post("/get_response_from_ai")
@@ -87,10 +88,21 @@ async def health():
 
 ############################################################################
 
+@router.get("/get_heading_image")
+async def find_heading_url(heading_text: str):
+    url = await ai.get_heading_url(heading_text)
+    return JSONResponse(content={"url": url})
+
+
+@router.get("/generate_image")
+def find_heading_url(heading_text: str):
+    url = f"https://www.theartstory.org/images20/ttip/{heading_text}.jpg"
+    return JSONResponse(content={"url": url})
+
 
 @router.post("/get_valid_data_id")
 def find_best_match_id(query: FetchDataId):
-    best_match_id, _ = get_metadata_id(JSON_STORE_PATH, query.chunk)
+    best_match_id = get_best_metadata_id(artists_ids, query.chunk)
     return JSONResponse(content={"best_match_id": best_match_id})
 
 

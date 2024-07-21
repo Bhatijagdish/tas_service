@@ -7,7 +7,6 @@ import string
 import unicodedata
 from logging.handlers import RotatingFileHandler
 import csv
-import uuid
 from pathlib import Path
 from typing import Dict
 
@@ -29,6 +28,9 @@ def setup_logger():
     return logger
 
 
+logger = setup_logger()
+
+
 def export_messages_to_csv(rows, file_path='messages.csv'):
     with open(file_path, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
@@ -45,7 +47,7 @@ def export_session_history_to_csv(rows, file_path='session_history.csv'):
 
 
 def get_confidence_score(str1: str, str2: str) -> float:
-    return difflib.SequenceMatcher(None, str1, str2).ratio()
+    return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
 
 
 def extract_highest_ratio_dict(nested_dict: Dict, match_str: str) -> Dict:
@@ -122,13 +124,20 @@ def get_metadata_type(directory_path, file_name) -> str:
         return json.load(file)["type"]
 
 
-def get_best_metadata_id(directory_path: str, query: str):
+def get_all_artists_ids(directory_path: str) -> list:
+    result = []
+    for item in os.listdir(directory_path):
+        best_item = item
+        file_type = get_metadata_type(directory_path, item)
+        if file_type == 'artist':
+            result.append(best_item)
+    return result
+
+
+def get_best_metadata_id(artist_ids: list, query: str):
     common_words = {"in", "to", "a", "the", "and", "or", "of", "is", "are", "on", "at", "for",
                     "was", "were", "has", "have", "had", "did", "do", "does", "it", "its", "his",
                     "him", "her", "an", "they", "their", "them"}
-
-    best_match_id = None
-    highest_ratio = 0
 
     find_string = query[:50]
     find_string = find_string.replace("\n", "")
@@ -139,17 +148,33 @@ def get_best_metadata_id(directory_path: str, query: str):
     filtered_string_output = [word for word in string_output if word.lower() not in common_words]
     find_string = "_".join(filtered_string_output[::-1])
 
-    for item in os.listdir(directory_path):
-        best_item = item[:-5]
-        confidence = get_confidence_score(best_item, find_string)
-        file_type = get_metadata_type(directory_path, item)
-        if confidence > highest_ratio and confidence > 0.5 and file_type == 'artist':
-            highest_ratio = confidence
-            best_match_id = best_item
-    return best_match_id
+    best_match = None
+    best_score = 0
+
+    for item in artist_ids:
+        final_item = item[:-5]
+        item_score = 0
+        found_all_words = True
+
+        for word in final_item.split('_'):
+            if word in common_words:
+                continue
+            position = find_string.find(word)
+            if position == -1:
+                found_all_words = False
+                break
+            item_score += position
+            logger.info(f"Score for {final_item} is {position}")
+            logger.info(f"Total item Score currently {item_score}")
+            logger.info(f"Best Score currently {best_score}")
+        if found_all_words and item_score > best_score:
+            best_match = final_item
+            best_score = item_score
+
+    return best_match
 
 
-def get_metadata_id(directory_path: str, query: str):
+def get_metadata_id(artists_ids: list, query: str):
     common_words = {"in", "to", "a", "the", "and", "or", "of", "is", "are", "on", "at", "for",
                     "was", "were", "has", "have", "had", "did", "do", "does", "it", "its", "his",
                     "him", "her", "an", "they", "their", "them"}
@@ -161,7 +186,7 @@ def get_metadata_id(directory_path: str, query: str):
     best_match = None
     best_score = float('inf')
 
-    for item in os.listdir(directory_path):
+    for item in artists_ids:
         final_item = item[:-5]
         normalized_item = normalize_text(final_item)
         item_score = 0
@@ -175,8 +200,7 @@ def get_metadata_id(directory_path: str, query: str):
                 found_all_words = False
                 break
             item_score += position
-        file_type = get_metadata_type(directory_path, item)
-        if found_all_words and item_score < best_score and file_type == 'artist':
+        if found_all_words and item_score < best_score:
             best_match = final_item
             best_score = item_score
 
