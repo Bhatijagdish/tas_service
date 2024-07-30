@@ -156,7 +156,8 @@ class ConversationalRAG:
 
     async def get_heading_url(self, query):
         embedding_vector = self.embeddings.embed_query(query.lower())
-        image_vector_store = FAISS.load_local("data/image_vector", self.embeddings, allow_dangerous_deserialization=True)
+        image_vector_store = FAISS.load_local("data/image_vector", self.embeddings,
+                                              allow_dangerous_deserialization=True)
         docs = image_vector_store.similarity_search_by_vector(embedding_vector, 3)
         for doc in docs:
             url = doc.metadata['source']
@@ -185,6 +186,13 @@ class ConversationalRAG:
 
     async def response_generator(self, prompt: str, query: str, resLen_String: str,
                                  responseLength: str, chat_history: list):
+
+        structure_response = "When responding, please format your answer with clear headings for each " \
+                             "specified chunk. Use the following structure:\n" \
+                             "**Heading 1**:\n" \
+                             "- Content related to the first sub-topic or question.\n" \
+                             "**Heading 2**:\n" \
+                             "- Content related to the first sub-topic or question.\n"
 
         ai_resp = user_resp = ""
         if chat_history:
@@ -227,7 +235,7 @@ class ConversationalRAG:
         response = self.openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": prompt},
+                {"role": "system", "content": f"{prompt} {structure_response}"},
                 {"role": "user", "content": f"\n\n{resLen_String}\n\n{ai_resp}\n\n{all_content}\n\n{query}"}
             ],
             temperature=0,
