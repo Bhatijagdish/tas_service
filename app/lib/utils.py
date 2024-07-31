@@ -8,7 +8,7 @@ import unicodedata
 from logging.handlers import RotatingFileHandler
 import csv
 from pathlib import Path
-from typing import Dict
+# from typing import dict
 
 
 def setup_logger():
@@ -50,7 +50,7 @@ def get_confidence_score(str1: str, str2: str) -> float:
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
 
 
-def extract_highest_ratio_dict(nested_dict: Dict, match_str: str) -> Dict:
+def extract_highest_ratio_dict(nested_dict: dict, match_str: str) -> dict:
     highest_ratio = 0
     best_match_dict = {}
 
@@ -78,7 +78,7 @@ def extract_highest_ratio_dict(nested_dict: Dict, match_str: str) -> Dict:
     return best_match_dict
 
 
-def extract_highest_ratio(nested_dict: Dict, match_str: str) -> float:
+def extract_highest_ratio(nested_dict: dict, match_str: str) -> float:
     highest_ratio = 0
 
     def traverse_dict(d):

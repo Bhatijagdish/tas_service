@@ -37,9 +37,16 @@ BUCKET_NAME="your_bucket_name"
 cd app
 ```
 ```commandline
-python -m uvicorn main:app --host 0.0.0.0 --port 8000
+`python -m uvicorn main:app --host 0.0.0.0 --port 8000`
+
+or for python3:
+
+`python3 -m uvicorn main:app --host 0.0.0.0 --port 8000`
 ```
 or
+
+uvicorn main:app 
+
 ### Run with Docker Compose
 
 ```commandline

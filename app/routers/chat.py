@@ -11,7 +11,7 @@ from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
 from lib import extract_highest_ratio_dict, get_metadata_id, get_best_metadata_id, get_all_artists_ids
-import string
+# import string
 
 router = APIRouter()
 
@@ -115,7 +115,7 @@ async def generate_response(request_body: QueryRequest, db: Session = Depends(db
 
         # Regex pattern to match the sections
         pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
-        # Extracting the parts using regex
+        # Extracting the parts using regex̀``
         matches = re.search(pattern, request_body.query)
 
         prompt = question = resLen_string = ""
@@ -181,6 +181,19 @@ async def get_metadata(query: MetadataQuery):
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
 
+@router.post('/get_source_link')
+async def get_metadata(query: MetadataQuery):
+    try:
+        file = f"{query.data_id}.json"
+        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+        with open(file_name, 'r') as f:
+            extracted_dict = json.load(f)[query.data_id]
+        return JSONResponse(content={
+            'source': extracted_dict.get('source_link', None)
+        }, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 @router.post('/get_artist_image_link')
 async def get_metadata(query: MetadataQuery):
@@ -196,15 +209,4 @@ async def get_metadata(query: MetadataQuery):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post('/get_source_link')
-async def get_metadata(query: MetadataQuery):
-    try:
-        file = f"{query.data_id}.json"
-        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
-        with open(file_name, 'r') as f:
-            extracted_dict = json.load(f)[query.data_id]
-        return JSONResponse(content={
-            'source': extracted_dict.get('source_link', None)
-        }, status_code=200)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+

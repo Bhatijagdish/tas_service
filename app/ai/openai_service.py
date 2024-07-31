@@ -85,27 +85,27 @@ class ConversationalRAG:
         self.vectorstore = FAISS.load_local("data/vector_store", self.embeddings, allow_dangerous_deserialization=True)
         self.agent = self.create_tas_agent()
 
-    def download_cs_file(self, file_name, destination_file_name):
-        try:
-            bucket = self.storage_client.bucket(self.bucket)
-            blob = bucket.blob(file_name)
-            blob.download_to_filename(destination_file_name)
-            logger.info(f"Downloaded {file_name} to {destination_file_name}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to download {file_name} from {self.bucket}: {str(e)}")
-            return False
+    # def download_cs_file(self, file_name, destination_file_name):
+    #     try:
+    #         bucket = self.storage_client.bucket(self.bucket)
+    #         blob = bucket.blob(file_name)
+    #         blob.download_to_filename(destination_file_name)
+    #         logger.info(f"Downloaded {file_name} to {destination_file_name}")
+    #         return True
+    #     except Exception as e:
+    #         logger.error(f"Failed to download {file_name} from {self.bucket}: {str(e)}")
+    #         return False
 
-    def download_and_replace_file(self, local_path):
-        try:
-            if os.path.exists(local_path):
-                os.remove(local_path)
-                logger.info(f"Deleting existing file: {os.path.basename(local_path)}")
-            else:
-                logger.info(f"Starting download: {os.path.basename(local_path)}")
-            self.download_cs_file(local_path, local_path)
-        except Exception as e:
-            logger.error(f"Error downloading and replacing file {local_path}: {str(e)}")
+    # def download_and_replace_file(self, local_path):
+    #     try:
+    #         if os.path.exists(local_path):
+    #             os.remove(local_path)
+    #             logger.info(f"Deleting existing file: {os.path.basename(local_path)}")
+    #         else:
+    #             logger.info(f"Starting download: {os.path.basename(local_path)}")
+    #         self.download_cs_file(local_path, local_path)
+    #     except Exception as e:
+    #         logger.error(f"Error downloading and replacing file {local_path}: {str(e)}")
 
     async def run_call(self, prompt: str, query: str, resLen_String: str,
                        responseLength: str,
