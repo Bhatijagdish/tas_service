@@ -45,7 +45,7 @@ class TypeAndID3(BaseModel):
 
 
 class MetadataQuery(BaseModel):
-    data_id: str
+    data_ids: list
 
 
 class QueryUrls(BaseModel):

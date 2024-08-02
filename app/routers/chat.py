@@ -199,12 +199,25 @@ async def get_metadata(query: MetadataQuery):
 @router.post('/get_source_link')
 async def get_metadata(query: MetadataQuery):
     try:
-        file = f"{query.data_id}.json"
-        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
-        with open(file_name, 'r') as f:
-            extracted_dict = json.load(f)[query.data_id]
+        result = {}
+        for data_id in query.data_ids:
+            file = f"{data_id}.json"
+            file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+            with open(file_name, 'r') as f:
+                extracted_dict = json.load(f)
+            id_type = extracted_dict['type']
+            id_name = extracted_dict[data_id]['name']
+            id_source = extracted_dict[data_id]['source_link']
+            if id_type in result:
+                result[id_type].append(f"[{id_name}]({id_source})]")
+            else:
+                result[id_type] = [f"[{id_name}]({id_source})]"]
+        final_response = ""
+        for key, value in result.items():
+            type_name = key.capitalize() + ('s' if len(value) > 1 else '')
+            final_response += f"\n{type_name}: {', '.join(i for i in value)}"
         return JSONResponse(content={
-            'source': extracted_dict.get('source_link', None)
+            'source': final_response
         }, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
