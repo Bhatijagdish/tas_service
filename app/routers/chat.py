@@ -11,7 +11,6 @@ from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
 from lib import extract_highest_ratio_dict, get_metadata_id, get_best_metadata_id, get_all_artists_ids
-import string
 
 router = APIRouter()
 
@@ -58,7 +57,7 @@ async def stream_response(request_body: QueryRequest, db: Session = Depends(db_c
     except HTTPException as http_err:
         return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
 @router.post("/get_token_count")
@@ -115,7 +114,7 @@ async def generate_response(request_body: QueryRequest, db: Session = Depends(db
 
         # Regex pattern to match the sections
         pattern = r'%info%(.*?)%\s*%query%(.*?)%\s*%instructions%(.*?)%'
-        # Extracting the parts using regex
+        # Extracting the parts using regex̀``
         matches = re.search(pattern, request_body.query)
 
         prompt = question = resLen_string = ""
@@ -136,7 +135,7 @@ async def generate_response(request_body: QueryRequest, db: Session = Depends(db
     except HTTPException as http_err:
         return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
 @router.post('/update_chat_history')
@@ -149,7 +148,7 @@ async def update_chat_history(query: ChatHistoryRequest, db: Session = Depends(d
     except HTTPException as http_err:
         return JSONResponse(content={"error": str(http_err)}, status_code=http_err.status_code)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
 @router.post('/get_urls')
@@ -165,7 +164,7 @@ async def get_metadata(query: QueryUrls):
             'urls': dict_output.get('url', None)
         }, status_code=200)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
 @router.post('/get_iframe_link')
@@ -193,7 +192,7 @@ async def get_metadata(query: MetadataQuery):
             'artist': extracted_dict.get('artist_image', None)
         }, status_code=200)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
 @router.post('/get_source_link')
@@ -220,4 +219,4 @@ async def get_metadata(query: MetadataQuery):
             'source': final_response
         }, status_code=200)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"error": str(e)}, status_code=400)
