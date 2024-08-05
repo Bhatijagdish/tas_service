@@ -4,7 +4,7 @@ import re
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from schema import (QueryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3,
-                    QueryUrls, MetadataQuery, ChatHistoryRequest, FetchDataId)
+                    QueryUrls, MetadataQuery, ChatHistoryRequest, FetchDataId, IframeQuery)
 from ai import AsyncCallbackHandler, ConversationalRAG
 from crud import model_to_dict, insert_message, get_recent_messages
 from db import Session, db_connection, logger
@@ -168,7 +168,7 @@ async def get_metadata(query: QueryUrls):
 
 
 @router.post('/get_iframe_link')
-async def get_metadata(query: MetadataQuery):
+async def get_metadata(query: IframeQuery):
     try:
         file = f"{query.data_id}.json"
         file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")

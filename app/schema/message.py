@@ -48,6 +48,10 @@ class MetadataQuery(BaseModel):
     data_ids: list
 
 
+class IframeQuery(BaseModel):
+    data_id: str
+
+
 class QueryUrls(BaseModel):
     data_id: str
     chunk: str
