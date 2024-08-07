@@ -158,11 +158,13 @@ class ConversationalRAG:
         embedding_vector = self.embeddings.embed_query(query.lower())
         image_vector_store = FAISS.load_local("data/image_vector", self.embeddings,
                                               allow_dangerous_deserialization=True)
-        docs = image_vector_store.similarity_search_by_vector(embedding_vector, 3)
+        docs = image_vector_store.similarity_search_with_score_by_vector(embedding_vector, 3)
         for doc in docs:
-            url = doc.metadata['source']
-            if url:
-                return url
+            doc, score = doc
+            if float(score) < 0.25:
+                url = doc.metadata['source']
+                if url:
+                    return url
         return None
 
     def create_tas_agent(self):

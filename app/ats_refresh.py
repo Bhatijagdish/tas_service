@@ -316,7 +316,8 @@ def lazy_load(dictionaries: List) -> Iterator[Document]:
 
 def images_loader(dictionaries: List) -> Iterator[Document]:
     for i, doc in enumerate(dictionaries):
-        page_content = f"{json.dumps(doc['title'], indent=2)} {json.dumps(doc['alternate_title'], indent=2)}"
+        page_content = f"{json.dumps(doc['title'], indent=2)} {json.dumps(doc['alternate_title'], indent=2)} " \
+                       f"{json.dumps(doc['description'], indent=2)}"
         yield Document(page_content=page_content, metadata={"source": doc['url'], "doc_id": doc['id']})
 
 
@@ -324,35 +325,40 @@ def get_all_images():
     data = []
     for item in os.listdir(JSON_STORE_PATH):
         doc_id = item[:-5]
-        url = f"https://www.theartstory.org/images20/ttip/{doc_id}.jpg"
-        title = doc_id.replace("_", " ")
-        alternate_title = " ".join(doc_id.split("_")[::-1])
-        data.append({"title": title, "alternate_title": alternate_title, "url": url, "id": doc_id})
         file_path = os.path.join(JSON_STORE_PATH, item).replace("\\", "/")
         with open(os.path.join(file_path), "r") as file:
-            json_data = json.load(file)[doc_id]
+            js_data = json.load(file)
+            json_data = js_data[doc_id]
+            json_type = js_data['type']
+            if json_type == "artist":
+                url = f"https://www.theartstory.org/images20/ttip/{doc_id}.jpg"
+                title = doc_id.replace("_", " ")
+                alternate_title = " ".join(doc_id.split("_")[::-1])
+                description = json_data.get('description')
+                data.append({"title": title, "description": description.replace("\"", "'"),
+                             "alternate_title": alternate_title, "url": url, "id": doc_id})
             sections = json_data.get('sections')
             if sections:
                 for section in sections:
                     sub_sections = section.get('sub_sections')
                     for section_id in sub_sections:
                         section_title = section_id.get('title')
-                        section_alternate_title = " ".join(
-                            section_title.split()[::-1]) if section_title else section_title
-                        urls = section.get('url')
-                        section_url = ""
+                        urls = section_id.get('url')
+                        description = section_id.get("content")
                         if urls:
                             for url in urls:
-                                section_url += url['url']
-                        data.append({"title": section_title, "alternate_title": section_alternate_title,
-                                     "url": section_url, "id": doc_id})
+                                data.append({"title": section_title, "description": description.replace("\"", "'"),
+                                             "alternate_title": url.get('alt_name'),
+                                             "url": url.get('url'), "id": doc_id})
             artworks = json_data.get('artworks')
             if artworks:
                 for artwork in artworks:
                     artwork_title = artwork.get('title')
                     artwork_alt_title = " ".join(artwork_title.split()[::-1]) if artwork_title else artwork_title
+                    description = artwork.get('description')
                     artwork_url = artwork.get('url')
-                    data.append({"title": artwork_title, "alternate_title": artwork_alt_title,
+                    data.append({"title": artwork_title, "description": description.replace("\"", "'"),
+                                 "alternate_title": artwork_alt_title,
                                  "url": artwork_url, "id": doc_id})
 
     with open("data/images.json", "w+") as file:
@@ -492,6 +498,20 @@ def create_local_vector_store() -> None:
     vector_store.save_local(VECTOR_STORE_PATH)
 
 
+def create_image_vector_store() -> None:
+    if not os.path.exists(IMAGE_STORE_PATH):
+        os.makedirs(IMAGE_STORE_PATH, exist_ok=True)
+
+    with open("data/images.json") as file:
+        final_data = json.load(file)
+
+    if os.path.exists(IMAGE_STORE_PATH):
+        shutil.rmtree(IMAGE_STORE_PATH)
+
+    vector_store = get_image_vector_store(final_data)
+    vector_store.save_local(IMAGE_STORE_PATH)
+
+
 def delete_merged_vector(bucket_name="tas-website-data"):
     # Instantiates a client
     client = storage.Client()
@@ -532,6 +552,7 @@ def upload_merged_vector(bucket_name="tas-website-data"):
         blob.upload_from_filename(local_file_path)
 
         print(f"File {local_file} uploaded to {cloud_file_path}.")
+
 
 if __name__ == '__main__':
     import sys
