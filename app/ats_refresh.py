@@ -517,6 +517,9 @@ def get_iframe_vector_store(data: List[Dict]):
 
 
 def create_local_vector_store() -> None:
+    if os.path.exists(VECTOR_STORE_PATH):
+        shutil.rmtree(VECTOR_STORE_PATH)
+
     if not os.path.exists(JSON_STORE_PATH):
         os.makedirs(JSON_STORE_PATH, exist_ok=True)
 
@@ -525,22 +528,19 @@ def create_local_vector_store() -> None:
     for inner_dict in final_data:
         create_json_file(inner_dict['json_file'], inner_dict)
 
-    if os.path.exists(VECTOR_STORE_PATH):
-        shutil.rmtree(VECTOR_STORE_PATH)
-
     vector_store = get_vector_store(final_data)
     vector_store.save_local(VECTOR_STORE_PATH)
 
 
 def create_image_vector_store() -> None:
+    if os.path.exists(IMAGE_STORE_PATH):
+        shutil.rmtree(IMAGE_STORE_PATH)
+
     if not os.path.exists(IMAGE_STORE_PATH):
         os.makedirs(IMAGE_STORE_PATH, exist_ok=True)
 
     with open("data/images.json") as file:
         final_data = json.load(file)
-
-    if os.path.exists(IMAGE_STORE_PATH):
-        shutil.rmtree(IMAGE_STORE_PATH)
 
     vector_store = get_image_vector_store(final_data)
     vector_store.save_local(IMAGE_STORE_PATH)
@@ -635,4 +635,9 @@ if __name__ == '__main__':
     elif vector_update_status == "iframe_vector_refresh":
         get_iframe_images()
         create_iframe_vector_store()
+
+    elif vector_update_status == "image_vector_refresh":
+        get_all_images()
+        create_image_vector_store()
+
     print(f"Execution took {time.time() - start_time} seconds")
