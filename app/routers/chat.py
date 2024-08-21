@@ -167,15 +167,26 @@ async def get_metadata(query: QueryUrls):
         return JSONResponse(content={"error": str(e)}, status_code=400)
 
 
+# @router.post('/get_iframe_link')
+# async def get_metadata(query: IframeQuery):
+#     try:
+#         file = f"{query.data_id}.json"
+#         file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
+#         with open(file_name, 'r') as f:
+#             extracted_dict = json.load(f)[query.data_id]
+#         return JSONResponse(content={
+#             'iframe': extracted_dict.get('iframe_link', None)
+#         }, status_code=200)
+#     except Exception as e:
+#         return JSONResponse(content={"error": str(e)}, status_code=400)
+
+
 @router.post('/get_iframe_link')
-async def get_metadata(query: IframeQuery):
+async def get_metadata(query: FetchDataId):
     try:
-        file = f"{query.data_id}.json"
-        file_name = os.path.join(JSON_STORE_PATH, file).replace("\\", "/")
-        with open(file_name, 'r') as f:
-            extracted_dict = json.load(f)[query.data_id]
+        extracted_dict = await ai.get_iframe_link(query.chunk)
         return JSONResponse(content={
-            'iframe': extracted_dict.get('iframe_link', None)
+            'iframe': extracted_dict.metadata.get('source', None)
         }, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)

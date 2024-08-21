@@ -83,6 +83,8 @@ class ConversationalRAG:
 
         self.embeddings = OpenAIEmbeddings()
         self.vectorstore = FAISS.load_local("data/vector_store", self.embeddings, allow_dangerous_deserialization=True)
+        self.iframe_vector_store = FAISS.load_local("data/iframe_store", self.embeddings,
+                                                    allow_dangerous_deserialization=True)
         self.agent = self.create_tas_agent()
 
     # def download_cs_file(self, file_name, destination_file_name):
@@ -185,6 +187,11 @@ class ConversationalRAG:
             memory=memory,
             return_intermediate_steps=False
         )
+
+    async def get_iframe_link(self, query):
+        embedding_vector = OpenAIEmbeddings().embed_query(query)
+        docs = self.iframe_vector_store.similarity_search_by_vector(embedding_vector)
+        return docs[0]
 
     async def response_generator(self, prompt: str, query: str, resLen_String: str,
                                  responseLength: str, chat_history: list):

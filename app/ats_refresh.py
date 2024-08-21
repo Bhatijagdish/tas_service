@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 VECTOR_STORE_PATH = "data/vector_store/"
 JSON_STORE_PATH = "data/json_files/"
 IMAGE_STORE_PATH = "data/image_vector"
+IFRAME_STORE_PATH = "data/iframe_store"
 
 
 def fetch_and_parse_xml(url: str) -> Union[ET.Element, None]:
@@ -321,6 +322,14 @@ def images_loader(dictionaries: List) -> Iterator[Document]:
         yield Document(page_content=page_content, metadata={"source": doc['url'], "doc_id": doc['id']})
 
 
+def iframe_loader(dictionaries: List) -> Iterator[Document]:
+    for doc in dictionaries:
+        for val in doc.values():
+            iframe_url = val['iframe_url']
+            page_content = f"{json.dumps(iframe_url, indent=2)} {json.dumps(val['description'], indent=2)}"
+            yield Document(page_content=page_content, metadata={"source": iframe_url})
+
+
 def get_all_images():
     data = []
     for item in os.listdir(JSON_STORE_PATH):
@@ -362,6 +371,19 @@ def get_all_images():
                                  "url": artwork_url, "id": doc_id})
 
     with open("data/images.json", "w+") as file:
+        file.write(json.dumps(data))
+
+
+def get_iframe_images():
+    data = []
+    for item in os.listdir(JSON_STORE_PATH):
+        doc_id = item[:-5]
+        file_path = os.path.join(JSON_STORE_PATH, item).replace("\\", "/")
+        with open(os.path.join(file_path), "r") as file:
+            js_data = json.load(file)
+            json_data = js_data[doc_id]
+            data.append({doc_id: {"iframe_url": json_data['iframe_link'], "description": json_data['synopsis']}})
+    with open("data/iframe.json", "w+") as file:
         file.write(json.dumps(data))
 
 
@@ -482,6 +504,18 @@ def get_image_vector_store(data: List[Dict]):
     return FAISS.from_documents(split_docs, embeddings)
 
 
+def get_iframe_vector_store(data: List[Dict]):
+    embeddings = OpenAIEmbeddings()
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=400,
+        length_function=len
+    )
+    split_docs = text_splitter.split_documents(iframe_loader(data))
+    return FAISS.from_documents(split_docs, embeddings)
+
+
 def create_local_vector_store() -> None:
     if not os.path.exists(JSON_STORE_PATH):
         os.makedirs(JSON_STORE_PATH, exist_ok=True)
@@ -510,6 +544,20 @@ def create_image_vector_store() -> None:
 
     vector_store = get_image_vector_store(final_data)
     vector_store.save_local(IMAGE_STORE_PATH)
+
+
+def create_iframe_vector_store() -> None:
+    if os.path.exists(IFRAME_STORE_PATH):
+        shutil.rmtree(IFRAME_STORE_PATH)
+
+    if not os.path.exists(IFRAME_STORE_PATH):
+        os.makedirs(IFRAME_STORE_PATH, exist_ok=True)
+
+    with open("data/iframe.json") as file:
+        final_data = json.load(file)
+
+    vector_store = get_iframe_vector_store(final_data)
+    vector_store.save_local(IFRAME_STORE_PATH)
 
 
 def delete_merged_vector(bucket_name="tas-website-data"):
@@ -584,4 +632,7 @@ if __name__ == '__main__':
         create_partial_local_database(vectorstore)
         # add or remove json file based on changes
         # if changes happened then please update the vector store
+    elif vector_update_status == "iframe_vector_refresh":
+        get_iframe_images()
+        create_iframe_vector_store()
     print(f"Execution took {time.time() - start_time} seconds")
