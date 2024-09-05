@@ -1,8 +1,12 @@
 import json
 import os
 import re
+import time
+
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
 from schema import (QueryRequest, TokenCounter, TypeAndID, TypeAndID2, TypeAndID3,
                     QueryUrls, MetadataQuery, ChatHistoryRequest, FetchDataId, IframeQuery)
 from ai import AsyncCallbackHandler, ConversationalRAG
@@ -11,6 +15,9 @@ from db import Session, db_connection, logger
 from ats import num_tokens_from_string, iframe_link_generator, source_link_generator, artist_img_generator
 import uuid
 from lib import extract_highest_ratio_dict, get_metadata_id, get_best_metadata_id, get_all_artists_ids
+from ats_refresh import (get_all_images, create_image_vector_store, get_iframe_images,
+                         create_iframe_vector_store, create_partial_local_database, create_local_vector_store,
+                         delete_merged_vector, upload_merged_vector)
 
 router = APIRouter()
 
@@ -20,6 +27,18 @@ os.environ['USER_AGENT'] = 'MyApp/1.0.0'
 ai = ConversationalRAG()
 JSON_STORE_PATH = "data/json_files/"
 artists_ids = get_all_artists_ids(JSON_STORE_PATH)
+VECTOR_STORE_PATH = "data/vector_store/"
+
+
+# Common function for executing the logic and calculating execution time
+def execute_vector_update(update_function):
+    start_time = time.time()
+    try:
+        update_function()
+        execution_time = time.time() - start_time
+        return {"message": f"Execution took {execution_time} seconds"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"An unexpected error occurred: {str(e)}")
 
 
 @router.post("/get_response_from_ai")
@@ -231,3 +250,52 @@ async def get_metadata(query: MetadataQuery):
         }, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
+
+
+# Define individual operations for each vector update status
+@router.post("/initial_cloud_refresh/")
+def initial_cloud_refresh():
+    """
+    Endpoint to perform initial cloud refresh:
+    - Create local vector store.
+    - Upload vector store to cloud.
+    - Delete old cloud vector store.
+    """
+    return execute_vector_update(lambda: (create_local_vector_store(), delete_merged_vector(), upload_merged_vector()))
+
+
+@router.post("/local_refresh/")
+def local_refresh():
+    """
+    Endpoint to perform local vector store refresh without cloud upload.
+    """
+    return execute_vector_update(create_local_vector_store)
+
+
+@router.post("/partial_cloud_refresh/")
+def partial_cloud_refresh():
+    """
+    Endpoint to refresh the vector store partially, syncing changes to cloud.
+    """
+    embeddings = OpenAIEmbeddings()
+    if not os.path.exists(VECTOR_STORE_PATH):
+        raise HTTPException(status_code=400, detail="Vector store path does not exist.")
+
+    vectorstore = FAISS.load_local(VECTOR_STORE_PATH, embeddings, allow_dangerous_deserialization=True)
+    return execute_vector_update(lambda: create_partial_local_database(vectorstore))
+
+
+@router.post("/iframe_vector_refresh/")
+def iframe_vector_refresh():
+    """
+    Endpoint to refresh iframe vector store.
+    """
+    return execute_vector_update(lambda: (get_iframe_images(), create_iframe_vector_store()))
+
+
+@router.post("/image_vector_refresh/")
+def image_vector_refresh():
+    """
+    Endpoint to refresh image vector store.
+    """
+    return execute_vector_update(lambda: (get_all_images(), create_image_vector_store()))
